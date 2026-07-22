@@ -1,0 +1,16 @@
+# Local browser sessions and caches
+.chrome-debug/
+.chrome-proofread/
+
+# Local OCR runtime and generated OCR data
+.ocr-local/
+windows_ocr_raw.json
+
+# Local verification captures
+verified-page-*.png
+page*-verified.png
+tmp-*.png
+
+# Working backups
+*.bak
+*.v2_bad

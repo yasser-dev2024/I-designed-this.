@@ -4,9 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
   <title>ديوان عبدالله الزمزمي</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260722-4">
 </head>
 <body>
+  <!-- Splash Screen (not a page: no hash, no history entry, excluded from pagination/index) -->
+  <div id="splashScreen" class="splash">
+    <div class="splash-bg"></div>
+    <picture class="splash-media">
+      <source media="(max-width: 860px)" srcset="reader-poet-mobile.png">
+      <img class="splash-photo" src="reader-poet-desktop.png" alt="عبدالله محمد الزمزمي">
+    </picture>
+    <div class="splash-text">
+      <h1 class="splash-name">
+        <img class="splash-name-logo" src="poet-name-gold.png" alt="الشاعر عبدالله محمد الزمزمي، رحمه الله">
+      </h1>
+      <p class="splash-diwan">ديوانُ عبدِاللهِ الزمزمِي</p>
+    </div>
+    <div class="splash-loader" aria-hidden="true"><span></span><span></span><span></span></div>
+    <button class="splash-skip" id="splashSkipBtn" type="button">تخطي</button>
+  </div>
+
   <!-- Background -->
   <div class="background"></div>
   <div class="background-veil"></div>
@@ -22,8 +39,7 @@
       </button>
 
       <h1 class="header-title">
-        <span>ديوانُ عبدِاللهِ الزمزمِي</span>
-        <svg class="title-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4c-6 0-12 4-14 12-1 3 0 4 3 3C17 17 21 11 21 5c0-.6-.4-1-1-1Z"/><path d="M5 19c2-4 5-7 9-9"/></svg>
+        <img class="poet-name-logo" src="poet-name-gold.png" alt="الشاعر عبدالله محمد الزمزمي، رحمه الله">
       </h1>
 
       <button class="menu-button" id="menuBtn">
@@ -35,25 +51,24 @@
     <!-- Main -->
     <main class="stage">
       <!-- Poem Panel -->
-      <section class="poem-panel">
+      <div class="poem-card-wrap">
+        <section class="poem-panel" aria-labelledby="poemTitle">
         <h2 id="poemTitle" class="poem-title">—</h2>
+        <div id="sectionLabel" class="section-label"></div>
         <div class="poem-meta">
-          <span class="flourish">﴾</span>
           <span id="poemPage" class="poem-page">—</span>
-          <span class="flourish flip">﴾</span>
         </div>
 
         <div id="poemText" class="poem-text">
           <p class="loading">جارٍ تحميل الديوان…</p>
         </div>
 
-        <span class="mini-flourish">❦</span>
-
-        <button class="pill-btn copy-btn" id="copyPanelBtn">
+        <button class="pill-btn copy-btn" id="copyPanelBtn" type="button" aria-label="نسخ نص الصفحة الحالية">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
           <span>نسخ النص</span>
         </button>
-      </section>
+        </section>
+      </div>
 
       <!-- Index / Sidebar -->
       <aside class="sidebar-right" id="sidebar">
@@ -65,7 +80,7 @@
         </div>
 
         <div class="search-wrap">
-          <input type="text" id="searchInput" placeholder="ابحث في القصائد.." class="search-input">
+          <input type="search" id="searchInput" placeholder="ابحث بكلمة في العنوان أو الأبيات" class="search-input" autocomplete="off" aria-label="البحث في عناوين القصائد وأبياتها">
           <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         </div>
 
@@ -74,48 +89,54 @@
           <button class="tab-btn" id="tabFav">المفضلة</button>
         </div>
 
+        <div id="searchStatus" class="search-status" role="status" aria-live="polite"></div>
+
         <div id="indexList" class="index-list"></div>
       </aside>
     </main>
 
     <!-- Footer -->
-    <footer class="footer">
-      <button class="pill-btn" id="readBtn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="M17 9c1 1 1 5 0 6"/></svg>
-        <span>قراءة القصيدة</span>
-      </button>
-      <button class="pill-btn" id="shareBtn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="M8.2 10.8 15.8 6.2M8.2 13.2l7.6 4.6"/></svg>
-        <span>مشاركة</span>
-      </button>
-      <button class="pill-btn" id="copyFooterBtn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
-        <span>نسخ التص</span>
-      </button>
+    <footer class="footer" aria-label="أدوات قارئ الديوان">
+      <div class="footer-tools" aria-label="أدوات القصيدة">
+        <button class="pill-btn" id="readBtn" type="button" aria-label="قراءة الصفحة صوتيًا" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="M17 9c1 1 1 5 0 6"/></svg>
+          <span>قراءة القصيدة</span>
+        </button>
+        <button class="pill-btn" id="shareBtn" type="button" aria-label="مشاركة الصفحة الحالية">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.4"/><circle cx="6" cy="12" r="2.4"/><circle cx="18" cy="19" r="2.4"/><path d="M8.2 10.8 15.8 6.2M8.2 13.2l7.6 4.6"/></svg>
+          <span>مشاركة</span>
+        </button>
+        <button class="pill-btn" id="copyFooterBtn" type="button" aria-label="نسخ نص الصفحة الحالية">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>
+          <span>نسخ النص</span>
+        </button>
+      </div>
 
       <div class="nav-group">
-        <button class="pill-btn nav-btn" id="prevBtn">
+        <button class="pill-btn nav-btn" id="prevBtn" type="button" aria-label="الصفحة السابقة">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
           <span>السابق</span>
         </button>
         <span class="page-counter" id="pageCounter">— من —</span>
-        <button class="pill-btn nav-btn" id="nextBtn">
+        <button class="pill-btn nav-btn" id="nextBtn" type="button" aria-label="الصفحة التالية">
           <span>التالي</span>
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
         </button>
       </div>
 
-      <button class="pill-btn" id="decFontBtn">A-</button>
-      <button class="pill-btn" id="incFontBtn">A+</button>
-      <button class="pill-btn" id="fullscreenBtn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 1-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg>
-        <span>ملء الشاشة</span>
-      </button>
+      <div class="display-tools" aria-label="أدوات العرض">
+        <button class="pill-btn" id="decFontBtn" type="button" aria-label="تصغير الخط">A−</button>
+        <button class="pill-btn" id="incFontBtn" type="button" aria-label="تكبير الخط">A+</button>
+        <button class="pill-btn" id="fullscreenBtn" type="button" aria-label="ملء الشاشة" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 1-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg>
+          <span>ملء الشاشة</span>
+        </button>
+      </div>
     </footer>
   </div>
 
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20260722-5"></script>
 </body>
 </html>
