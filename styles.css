@@ -344,6 +344,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  width: 100%;
+  max-width: 100vw;
   gap: 24px;
   padding: 10px 44px 20px;
   min-height: 0;
@@ -383,6 +385,15 @@ body {
   direction: rtl;
 }
 
+.poem-card-wrap.visual-page {
+  height: 100%;
+}
+
+.poem-panel.visual-page {
+  height: 100%;
+  max-height: 100%;
+}
+
 .poem-panel::before {
   content: '';
   position: absolute;
@@ -412,6 +423,9 @@ body {
   margin-bottom: 10px;
   font-weight: 400;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .section-label {
@@ -527,12 +541,16 @@ body {
 
 .source-image-card {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   flex: 0 0 auto;
   margin: 2px 0 8px;
 }
 
 .source-image-open {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -562,6 +580,8 @@ body {
 .source-image-frame {
   position: relative;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -584,9 +604,10 @@ body {
   display: block;
   width: 100%;
   height: auto;
+  min-width: 0;
   max-width: 100%;
   max-height: none;
-  object-fit: scale-down;
+  object-fit: contain;
   background: #fff;
 }
 
@@ -637,6 +658,36 @@ body {
 
 .source-image-error .source-image-info {
   opacity: 0.58;
+}
+
+/* On desktop, keep the complete source page visible inside the fixed-height card.
+   The viewer still provides a larger reading surface without cropping the image. */
+@media (min-width: 861px) {
+  .poem-panel.visual-page .poem-text.has-source-image {
+    overflow-y: hidden;
+  }
+
+  .poem-panel.visual-page .source-image-card {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .poem-panel.visual-page .source-image-open {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .poem-panel.visual-page .source-image-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .poem-panel.visual-page .source-page-image {
+    width: auto;
+    height: 100%;
+    max-height: 100%;
+  }
 }
 
 /* Fade transition between pages (decorative only; content swap stays instant/synchronous) */
@@ -1676,6 +1727,7 @@ body.source-image-viewer-open {
 
   .poem-card-wrap.visual-page,
   .poem-panel.visual-page {
+    height: auto;
     max-height: none;
   }
 
