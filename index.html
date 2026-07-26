@@ -2,9 +2,9 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ديوان عبدالله الزمزمي</title>
-  <link rel="stylesheet" href="styles.css?v=20260722-4">
+  <link rel="stylesheet" href="styles.css?v=20260726-original-images-1">
 </head>
 <body>
   <!-- Splash Screen (not a page: no hash, no history entry, excluded from pagination/index) -->
@@ -42,7 +42,7 @@
         <img class="poet-name-logo" src="poet-name-gold.png" alt="الشاعر عبدالله محمد الزمزمي، رحمه الله">
       </h1>
 
-      <button class="menu-button" id="menuBtn">
+      <button class="menu-button" id="menuBtn" type="button" aria-controls="sidebar" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         <span>فهرس الديوان</span>
       </button>
@@ -71,10 +71,13 @@
       </div>
 
       <!-- Index / Sidebar -->
-      <aside class="sidebar-right" id="sidebar">
+      <aside class="sidebar-right" id="sidebar" aria-label="فهرس الديوان">
         <div class="sidebar-header">
-          <h3>فهرس الديوان</h3>
-          <button class="close-btn" id="closeSidebarBtn" aria-label="إغلاق">
+          <div>
+            <span class="sidebar-kicker">تصفّح وابحث</span>
+            <h3>فهرس الديوان</h3>
+          </div>
+          <button class="close-btn" id="closeSidebarBtn" type="button" aria-label="إغلاق الفهرس">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
         </div>
@@ -82,16 +85,31 @@
         <div class="search-wrap">
           <input type="search" id="searchInput" placeholder="ابحث بكلمة في العنوان أو الأبيات" class="search-input" autocomplete="off" aria-label="البحث في عناوين القصائد وأبياتها">
           <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <button class="search-clear" id="searchClearBtn" type="button" aria-label="مسح البحث" title="مسح البحث">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg>
+          </button>
         </div>
 
         <div class="tabs">
-          <button class="tab-btn active" id="tabAll">كل القصائد</button>
-          <button class="tab-btn" id="tabFav">المفضلة</button>
+          <button class="tab-btn active" id="tabAll" type="button">كل القصائد</button>
+          <button class="tab-btn" id="tabFav" type="button">المفضلة</button>
         </div>
 
-        <div id="searchStatus" class="search-status" role="status" aria-live="polite"></div>
+        <form class="page-jump" id="pageJumpForm">
+          <label for="pageJumpInput">انتقال سريع</label>
+          <div class="page-jump-controls">
+            <input id="pageJumpInput" type="text" inputmode="numeric" pattern="[0-9٠-٩۰-۹]*" placeholder="رقم الصفحة" aria-label="رقم الصفحة">
+            <button id="pageJumpBtn" type="submit">انتقال</button>
+          </div>
+          <div class="page-jump-error" id="pageJumpError" role="alert"></div>
+        </form>
 
-        <div id="indexList" class="index-list"></div>
+        <div class="index-summary">
+          <div id="searchStatus" class="search-status" role="status" aria-live="polite"></div>
+          <span class="index-hint">اختر عنوانًا للانتقال</span>
+        </div>
+
+        <nav id="indexList" class="index-list" aria-label="صفحات الديوان"></nav>
       </aside>
     </main>
 
@@ -114,13 +132,19 @@
 
       <div class="nav-group">
         <button class="pill-btn nav-btn" id="prevBtn" type="button" aria-label="الصفحة السابقة">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
           <span>السابق</span>
         </button>
-        <span class="page-counter" id="pageCounter">— من —</span>
+        <span class="page-counter" id="pageCounter" aria-live="polite" aria-atomic="true">
+          <span class="page-counter-label">الصفحة الحالية</span>
+          <span class="page-counter-values">
+            <span class="page-counter-word">رقم</span>
+            <strong id="currentPageNumber">—</strong>
+            <span class="page-counter-separator">من</span>
+            <strong id="totalPageNumber">—</strong>
+          </span>
+        </span>
         <button class="pill-btn nav-btn" id="nextBtn" type="button" aria-label="الصفحة التالية">
           <span>التالي</span>
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
         </button>
       </div>
 
@@ -133,11 +157,21 @@
         </button>
       </div>
     </footer>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   </div>
 
-  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="source-image-viewer" id="sourceImageViewer" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="sourceImageViewerCaption">
+    <button class="source-image-viewer-close" id="sourceImageViewerClose" type="button" aria-label="إغلاق الصورة">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <figure class="source-image-viewer-figure">
+      <img id="sourceImageViewerImage" src="" alt="">
+      <figcaption id="sourceImageViewerCaption"></figcaption>
+    </figure>
+  </div>
 
   <script src="pages-data.js?v=20260726-text-data-force-4"></script>
-  <script src="script.js?v=20260726-text-data-force-4"></script>
+  <script src="script.js?v=20260726-original-images-1"></script>
 </body>
 </html>

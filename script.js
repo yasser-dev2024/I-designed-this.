@@ -2,8 +2,17 @@ const titleEl = document.getElementById('poemTitle');
 const textEl = document.getElementById('poemText');
 const pageEl = document.getElementById('poemPage');
 const indexListEl = document.getElementById('indexList');
-const pageCounterEl = document.getElementById('pageCounter');
+const currentPageNumberEl = document.getElementById('currentPageNumber');
+const totalPageNumberEl = document.getElementById('totalPageNumber');
 const searchStatusEl = document.getElementById('searchStatus');
+const searchClearBtn = document.getElementById('searchClearBtn');
+const pageJumpForm = document.getElementById('pageJumpForm');
+const pageJumpInput = document.getElementById('pageJumpInput');
+const pageJumpError = document.getElementById('pageJumpError');
+const sourceImageViewer = document.getElementById('sourceImageViewer');
+const sourceImageViewerImage = document.getElementById('sourceImageViewerImage');
+const sourceImageViewerCaption = document.getElementById('sourceImageViewerCaption');
+const sourceImageViewerClose = document.getElementById('sourceImageViewerClose');
 
 const menuBtn = document.getElementById('menuBtn');
 const sidebar = document.getElementById('sidebar');
@@ -30,9 +39,12 @@ const splashSkipBtn = document.getElementById('splashSkipBtn');
 const splashPhotoEl = document.querySelector('.splash-photo');
 const sectionLabelEl = document.getElementById('sectionLabel');
 const poemPanelEl = document.querySelector('.poem-panel');
+const poemCardWrapEl = document.querySelector('.poem-card-wrap');
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const SECTION_MARKER = /^(أولاً|ثانياً|ثالثاً|رابعاً|خامساً)\s*:/;
+const ORIGINAL_IMAGE_PAGES = new Set([1, 2, 4, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 208]);
+const HANDWRITTEN_IMAGE_PAGES = new Set([4, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202]);
 
 let pages = [];
 let currentPage = 0;
@@ -86,8 +98,14 @@ function normalizePage(raw, index) {
   let text = makeTextBlock(raw);
   const rawTitle = raw.title || raw.heading || raw.name || '';
   const title = rawTitle.trim() || firstTextLine(text) || `الصفحة ${pageNumber}`;
+  const numericPageNumber = Number(pageNumber);
+  const originalImage = ORIGINAL_IMAGE_PAGES.has(numericPageNumber)
+    ? `page_images/page_${String(numericPageNumber).padStart(3, '0')}.png`
+    : null;
+  const image = raw.image || originalImage;
+  const imageKind = raw.imageKind || (HANDWRITTEN_IMAGE_PAGES.has(numericPageNumber) ? 'handwritten' : 'source');
 
-  return { pageNumber, title, text, image: raw.image || null };
+  return { pageNumber, title, text, image, imageKind };
 }
 
 function parsePagesJson(data) {
@@ -132,7 +150,8 @@ function loadData() {
     .then(loaded => {
       pages = loaded;
       computeSectionLabels(pages);
-      renderIndexList();
+      pageJumpInput.max = String(Math.max(...pages.map(page => Number(page.pageNumber) || 0)));
+      renderIndexList({ scrollActive: false });
       if (!pages.length) return;
       const match = /page=(\d+)/.exec(location.hash);
       const wanted = match ? pages.findIndex(p => p.pageNumber === Number(match[1])) : -1;
@@ -176,8 +195,68 @@ function computeSectionLabels(pagesArr) {
 
 /* ---------- Verse rendering (two-column سدر/عجز) ---------- */
 
+function sourceImageLabel(page) {
+  return page.imageKind === 'handwritten'
+    ? 'الصورة الأصلية بخط الشاعر'
+    : 'الصورة الأصلية من الديوان';
+}
+
+function renderSourceImage(container, page) {
+  if (!page.image) return false;
+
+  const label = sourceImageLabel(page);
+  const figure = document.createElement('figure');
+  figure.className = `source-image-card ${page.imageKind === 'handwritten' ? 'handwritten-source' : ''}`.trim();
+
+  const openButton = document.createElement('button');
+  openButton.type = 'button';
+  openButton.className = 'source-image-open';
+  openButton.dataset.sourceImage = page.image;
+  openButton.dataset.sourceAlt = `${label} — ${page.title}`;
+  openButton.dataset.sourceCaption = `${label} — الصفحة ${page.pageNumber}`;
+  openButton.setAttribute('aria-label', `تكبير ${label} للصفحة ${page.pageNumber}`);
+
+  const imageFrame = document.createElement('span');
+  imageFrame.className = 'source-image-frame';
+
+  const image = document.createElement('img');
+  image.className = 'source-page-image';
+  image.src = page.image;
+  image.alt = `${label}: ${page.title}`;
+  image.loading = 'eager';
+  image.decoding = 'async';
+
+  image.addEventListener('error', () => {
+    figure.classList.add('source-image-error');
+    openButton.disabled = true;
+    openButton.setAttribute('aria-label', 'تعذّر تحميل الصورة الأصلية');
+  });
+
+  const mediaInfo = document.createElement('span');
+  mediaInfo.className = 'source-image-info';
+
+  const mediaLabel = document.createElement('span');
+  mediaLabel.className = 'source-image-label';
+  mediaLabel.textContent = label;
+
+  const zoomHint = document.createElement('span');
+  zoomHint.className = 'source-image-zoom-hint';
+  zoomHint.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/></svg><span>عرض بالحجم الكامل</span>';
+
+  imageFrame.appendChild(image);
+  mediaInfo.appendChild(mediaLabel);
+  mediaInfo.appendChild(zoomHint);
+  openButton.appendChild(imageFrame);
+  openButton.appendChild(mediaInfo);
+  figure.appendChild(openButton);
+  container.appendChild(figure);
+  return true;
+}
+
 function renderPoemBody(container, page, mode) {
   container.innerHTML = '';
+  const hasSourceImage = renderSourceImage(container, page);
+  container.classList.toggle('has-source-image', hasSourceImage);
   const body = page.text || '';
   if (!body.trim()) {
     return;
@@ -280,6 +359,7 @@ function normalizeArabic(value) {
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه')
     .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -288,22 +368,29 @@ function getSearchMatch(page, query) {
   const normalizedQuery = normalizeArabic(query);
   if (!normalizedQuery) return null;
 
-  const titleMatch = normalizeArabic(page.title).includes(normalizedQuery);
-  const matchedLines = (page.text || '')
+  const terms = normalizedQuery.split(' ').filter(Boolean);
+  const normalizedTitle = normalizeArabic(page.title);
+  const lines = (page.text || '')
     .split('\n')
     .map(line => line.trim())
-    .filter(Boolean)
-    .filter(line => normalizeArabic(line).includes(normalizedQuery));
+    .filter(Boolean);
+  const normalizedBody = normalizeArabic(lines.join(' '));
+  const searchablePage = `${normalizedTitle} ${normalizedBody}`;
+  const titleMatch = terms.every(term => normalizedTitle.includes(term));
+  const textMatch = terms.every(term => searchablePage.includes(term));
+  const matchedLines = lines.filter(line => {
+    const normalizedLine = normalizeArabic(line);
+    return terms.some(term => normalizedLine.includes(term));
+  });
 
-  const numberMatch = String(page.pageNumber).includes(query.trim());
-  if (!titleMatch && !matchedLines.length && !numberMatch) return null;
+  const numberMatch = /^\d+$/.test(normalizedQuery) && String(page.pageNumber).includes(normalizedQuery);
+  if (!titleMatch && !textMatch && !numberMatch) return null;
 
-  const titleKey = normalizeArabic(page.title);
   const snippets = matchedLines
-    .filter(line => normalizeArabic(line) !== titleKey)
+    .filter(line => normalizeArabic(line) !== normalizedTitle)
     .slice(0, 2);
 
-  return { titleMatch, numberMatch, snippets, matchCount: matchedLines.length };
+  return { titleMatch, textMatch, numberMatch, snippets, matchCount: matchedLines.length };
 }
 
 function getPageCopyText(page) {
@@ -327,34 +414,51 @@ function getFilteredPages() {
   if (q) {
     list = list
       .map(p => ({ ...p, searchMatch: getSearchMatch(p, q) }))
-      .filter(p => p.searchMatch);
+      .filter(p => p.searchMatch)
+      .sort((a, b) => Number(b.searchMatch.titleMatch) - Number(a.searchMatch.titleMatch) || a.idx - b.idx);
   }
   return list;
 }
 
-function renderIndexList() {
+function renderIndexList({ scrollActive = false, resetScroll = false } = {}) {
   const list = getFilteredPages();
   indexListEl.innerHTML = '';
   const q = searchQuery.trim();
 
   if (searchStatusEl) {
-    searchStatusEl.textContent = q
-      ? (list.length === 1 ? 'نتيجة واحدة' : `${list.length} نتيجة`)
-      : '';
+    if (q) {
+      searchStatusEl.textContent = list.length === 1 ? 'نتيجة واحدة' : `${list.length} نتيجة`;
+    } else if (currentTab === 'fav') {
+      searchStatusEl.textContent = list.length === 1 ? 'صفحة مفضلة واحدة' : `${list.length} صفحة مفضلة`;
+    } else {
+      searchStatusEl.textContent = `${list.length} صفحة`;
+    }
   }
+  searchClearBtn.classList.toggle('visible', !!q);
 
   if (!list.length) {
     const empty = document.createElement('div');
     empty.className = 'index-empty';
-    empty.textContent = currentTab === 'fav' ? 'لا توجد قصائد في المفضلة بعد.' : 'لا توجد نتائج مطابقة.';
+    const emptyTitle = document.createElement('strong');
+    emptyTitle.textContent = currentTab === 'fav' && !q ? 'المفضلة فارغة' : 'لا توجد نتائج مطابقة';
+    const emptyHint = document.createElement('span');
+    emptyHint.textContent = currentTab === 'fav' && !q
+      ? 'أضف الصفحات إلى المفضلة لتظهر هنا.'
+      : 'جرّب كلمة أخرى أو امسح البحث.';
+    empty.appendChild(emptyTitle);
+    empty.appendChild(emptyHint);
     indexListEl.appendChild(empty);
+    if (resetScroll) indexListEl.scrollTop = 0;
     return;
   }
 
   list.forEach(page => {
-    const item = document.createElement('button');
-    item.type = 'button';
+    const item = document.createElement('a');
+    item.href = `#page=${page.pageNumber}`;
     item.className = 'index-item' + (page.idx === currentPage ? ' active' : '') + (page.searchMatch?.snippets.length ? ' has-snippet' : '');
+    item.dataset.pageIndex = String(page.idx);
+    item.setAttribute('aria-label', `الانتقال إلى ${page.title}، الصفحة ${page.pageNumber}`);
+    if (page.idx === currentPage) item.setAttribute('aria-current', 'page');
 
     const num = document.createElement('span');
     num.className = 'idx-num';
@@ -395,17 +499,34 @@ function renderIndexList() {
       item.appendChild(star);
     }
 
-    item.addEventListener('click', () => {
-      showPage(page.idx);
-      if (isMobileLayout()) closeSidebar();
+    if (page.image) {
+      const mediaBadge = document.createElement('span');
+      mediaBadge.className = 'idx-media';
+      mediaBadge.title = page.imageKind === 'handwritten' ? 'تتضمن صورة بخط الشاعر' : 'تتضمن صورة أصلية';
+      mediaBadge.setAttribute('aria-hidden', 'true');
+      mediaBadge.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m5 17 4.5-4 3.2 2.7 2.3-2 4 3.3"/></svg>';
+      item.appendChild(mediaBadge);
+    }
+
+    const openIcon = document.createElement('span');
+    openIcon.className = 'idx-open';
+    openIcon.setAttribute('aria-hidden', 'true');
+    openIcon.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>';
+    item.appendChild(openIcon);
+
+    item.addEventListener('click', event => {
+      event.preventDefault();
+      navigateToPage(page.idx, { fromIndex: true });
     });
 
     indexListEl.appendChild(item);
 
-    if (page.idx === currentPage) {
+    if (scrollActive && page.idx === currentPage) {
       requestAnimationFrame(() => item.scrollIntoView({ block: 'center' }));
     }
   });
+
+  if (resetScroll) indexListEl.scrollTop = 0;
 }
 
 /* ---------- Page display ---------- */
@@ -430,7 +551,10 @@ function applyPageContent(page) {
   titleEl.classList.toggle('prose-title', mode === 'prose');
   sectionLabelEl.textContent = page.sectionLabel || '';
   pageEl.textContent = `الصفحة ${page.pageNumber} من ${pages.length}`;
-  pageCounterEl.textContent = `${page.pageNumber} من ${pages.length}`;
+  currentPageNumberEl.textContent = page.pageNumber;
+  totalPageNumberEl.textContent = pages.length;
+  poemPanelEl.classList.toggle('visual-page', !!page.image);
+  poemCardWrapEl.classList.toggle('visual-page', !!page.image);
   textEl.classList.toggle('prose-mode', mode === 'prose');
   renderPoemBody(textEl, page, mode);
   updateFavButton();
@@ -438,17 +562,22 @@ function applyPageContent(page) {
   renderIndexList();
 }
 
-function showPage(index, updateHash = true) {
+function showPage(index, updateHash = true, historyMode = 'replace') {
   if (index < 0 || index >= pages.length) return;
+
+  if (sourceImageViewer.classList.contains('open')) {
+    closeSourceImageViewer({ restoreFocus: false });
+  }
 
   if (speaking) stopReading();
 
   currentPage = index;
   const page = pages[index];
   applyPageContent(page);
+  textEl.scrollTop = 0;
 
   if (updateHash && location.hash !== `#page=${page.pageNumber}`) {
-    history.replaceState(null, '', `#page=${page.pageNumber}`);
+    history[historyMode === 'push' ? 'pushState' : 'replaceState'](null, '', `#page=${page.pageNumber}`);
   }
 
   if (!prefersReducedMotion && poemPanelEl.animate) {
@@ -456,6 +585,27 @@ function showPage(index, updateHash = true) {
       [{ opacity: 0.72 }, { opacity: 1 }],
       { duration: 180, easing: 'ease-out' }
     );
+  }
+}
+
+function navigateToPage(index, { fromIndex = false } = {}) {
+  if (index < 0 || index >= pages.length) return;
+
+  if (index !== currentPage) {
+    showPage(index, true, 'push');
+  }
+
+  pageJumpError.textContent = '';
+  pageJumpInput.value = '';
+
+  if (fromIndex && isMobileLayout()) {
+    closeSidebar();
+    requestAnimationFrame(() => {
+      poemPanelEl.scrollIntoView({
+        block: 'start',
+        behavior: prefersReducedMotion ? 'auto' : 'smooth'
+      });
+    });
   }
 }
 
@@ -474,17 +624,29 @@ function openSidebar() {
   sidebar.classList.add('force-open');
   sidebar.classList.remove('force-closed');
   if (isMobileLayout()) sidebarBackdrop.classList.add('active');
+  menuBtn.setAttribute('aria-expanded', 'true');
+  sidebar.setAttribute('aria-hidden', 'false');
+  renderIndexList({ scrollActive: !searchQuery.trim() });
 }
 
 function closeSidebar() {
   sidebar.classList.remove('force-open');
   sidebar.classList.add('force-closed');
   sidebarBackdrop.classList.remove('active');
+  menuBtn.setAttribute('aria-expanded', 'false');
+  sidebar.setAttribute('aria-hidden', 'true');
 }
 
 function toggleSidebar() {
   if (isSidebarVisible()) closeSidebar();
   else openSidebar();
+}
+
+function syncSidebarAccessibility() {
+  const visible = isSidebarVisible();
+  menuBtn.setAttribute('aria-expanded', String(visible));
+  sidebar.setAttribute('aria-hidden', String(!visible));
+  if (!isMobileLayout()) sidebarBackdrop.classList.remove('active');
 }
 
 /* ---------- Font size ---------- */
@@ -610,10 +772,90 @@ function toggleFullscreen() {
   }
 }
 
+/* ---------- Original page images ---------- */
+
+let sourceImageViewerLastFocus = null;
+
+function openSourceImageViewer(button) {
+  const source = button.dataset.sourceImage;
+  if (!source) return;
+
+  sourceImageViewerLastFocus = document.activeElement;
+  sourceImageViewerImage.src = source;
+  sourceImageViewerImage.alt = button.dataset.sourceAlt || 'الصورة الأصلية من الديوان';
+  sourceImageViewerCaption.textContent = button.dataset.sourceCaption || 'الصورة الأصلية من الديوان';
+  sourceImageViewer.classList.add('open');
+  sourceImageViewer.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('source-image-viewer-open');
+  sourceImageViewer.scrollTop = 0;
+  sourceImageViewerClose.focus({ preventScroll: true });
+}
+
+function closeSourceImageViewer({ restoreFocus = true } = {}) {
+  if (!sourceImageViewer.classList.contains('open')) return;
+
+  sourceImageViewer.classList.remove('open');
+  sourceImageViewer.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('source-image-viewer-open');
+
+  if (restoreFocus && sourceImageViewerLastFocus?.isConnected) {
+    sourceImageViewerLastFocus.focus({ preventScroll: true });
+  }
+  sourceImageViewerLastFocus = null;
+}
+
+/* ---------- Index interaction ---------- */
+
+function clearSearch({ focus = false } = {}) {
+  searchQuery = '';
+  searchInput.value = '';
+  renderIndexList({ scrollActive: true });
+  if (focus) searchInput.focus({ preventScroll: true });
+}
+
+function focusIndexEdge(edge = 'first') {
+  const items = [...indexListEl.querySelectorAll('.index-item')];
+  if (!items.length) return;
+  items[edge === 'last' ? items.length - 1 : 0].focus();
+}
+
+function focusAdjacentIndexItem(currentItem, direction) {
+  const items = [...indexListEl.querySelectorAll('.index-item')];
+  const currentIndex = items.indexOf(currentItem);
+  if (currentIndex < 0 || !items.length) return;
+  const nextIndex = Math.max(0, Math.min(items.length - 1, currentIndex + direction));
+  items[nextIndex].focus();
+}
+
+function setCurrentTab(tab) {
+  currentTab = tab;
+  const allActive = tab === 'all';
+  tabAllBtn.classList.toggle('active', allActive);
+  tabFavBtn.classList.toggle('active', !allActive);
+  tabAllBtn.setAttribute('aria-pressed', String(allActive));
+  tabFavBtn.setAttribute('aria-pressed', String(!allActive));
+  renderIndexList({ scrollActive: !searchQuery.trim(), resetScroll: !!searchQuery.trim() });
+}
+
+function parsePageNumber(value) {
+  const normalizedDigits = String(value || '')
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/\s+/g, '');
+  return /^\d+$/.test(normalizedDigits) ? Number(normalizedDigits) : NaN;
+}
+
+function syncPageFromHash() {
+  const match = /page=(\d+)/.exec(location.hash);
+  if (!match || !pages.length) return;
+  const index = pages.findIndex(page => page.pageNumber === Number(match[1]));
+  if (index >= 0 && index !== currentPage) showPage(index, false);
+}
+
 /* ---------- Events ---------- */
 
-prevBtn.addEventListener('click', () => currentPage > 0 && showPage(currentPage - 1));
-nextBtn.addEventListener('click', () => currentPage < pages.length - 1 && showPage(currentPage + 1));
+prevBtn.addEventListener('click', () => currentPage > 0 && navigateToPage(currentPage - 1));
+nextBtn.addEventListener('click', () => currentPage < pages.length - 1 && navigateToPage(currentPage + 1));
 
 menuBtn.addEventListener('click', toggleSidebar);
 closeSidebarBtn.addEventListener('click', closeSidebar);
@@ -628,6 +870,16 @@ document.addEventListener('fullscreenchange', () => {
   fullscreenBtn.setAttribute('aria-pressed', String(!!document.fullscreenElement));
 });
 
+textEl.addEventListener('click', event => {
+  const openButton = event.target.closest('.source-image-open');
+  if (openButton) openSourceImageViewer(openButton);
+});
+
+sourceImageViewerClose.addEventListener('click', () => closeSourceImageViewer());
+sourceImageViewer.addEventListener('click', event => {
+  if (event.target === sourceImageViewer) closeSourceImageViewer();
+});
+
 incFontBtn.addEventListener('click', () => {
   fontStep = Math.min(fontStep + 1, FONT_STEPS.length - 1);
   applyFontSize();
@@ -639,21 +891,68 @@ decFontBtn.addEventListener('click', () => {
 
 searchInput.addEventListener('input', e => {
   searchQuery = e.target.value;
-  renderIndexList();
+  renderIndexList({ scrollActive: false, resetScroll: true });
 });
 
-tabAllBtn.addEventListener('click', () => {
-  currentTab = 'all';
-  tabAllBtn.classList.add('active');
-  tabFavBtn.classList.remove('active');
-  renderIndexList();
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    focusIndexEdge('first');
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    focusIndexEdge('last');
+  } else if (e.key === 'Enter') {
+    const firstResult = indexListEl.querySelector('.index-item');
+    if (firstResult) {
+      e.preventDefault();
+      firstResult.click();
+    }
+  } else if (e.key === 'Escape' && searchQuery) {
+    e.preventDefault();
+    e.stopPropagation();
+    clearSearch({ focus: true });
+  }
 });
 
-tabFavBtn.addEventListener('click', () => {
-  currentTab = 'fav';
-  tabFavBtn.classList.add('active');
-  tabAllBtn.classList.remove('active');
-  renderIndexList();
+searchClearBtn.addEventListener('click', () => clearSearch({ focus: true }));
+
+indexListEl.addEventListener('keydown', e => {
+  const item = e.target.closest('.index-item');
+  if (!item) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    focusAdjacentIndexItem(item, 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    focusAdjacentIndexItem(item, -1);
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    focusIndexEdge('first');
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    focusIndexEdge('last');
+  }
+});
+
+tabAllBtn.addEventListener('click', () => setCurrentTab('all'));
+tabFavBtn.addEventListener('click', () => setCurrentTab('fav'));
+
+pageJumpInput.addEventListener('input', () => {
+  pageJumpError.textContent = '';
+});
+
+pageJumpForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const pageNumber = parsePageNumber(pageJumpInput.value);
+  const index = pages.findIndex(page => Number(page.pageNumber) === pageNumber);
+
+  if (index < 0) {
+    pageJumpError.textContent = 'أدخل رقم صفحة موجودًا في الديوان.';
+    pageJumpInput.focus();
+    return;
+  }
+
+  navigateToPage(index, { fromIndex: true });
 });
 
 favBtn.addEventListener('click', () => {
@@ -663,25 +962,51 @@ favBtn.addEventListener('click', () => {
   else favorites.add(page.pageNumber);
   saveFavorites();
   updateFavButton();
-  renderIndexList();
+  renderIndexList({ scrollActive: false });
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    closeSidebar();
+  if (sourceImageViewer.classList.contains('open')) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSourceImageViewer();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      sourceImageViewerClose.focus({ preventScroll: true });
+    }
     return;
   }
+
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openSidebar();
+    searchInput.focus({ preventScroll: true });
+    searchInput.select();
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    if (isSidebarVisible()) {
+      closeSidebar();
+      menuBtn.focus({ preventScroll: true });
+    }
+    return;
+  }
+
   if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
-  if (e.key === 'ArrowRight' && currentPage > 0) showPage(currentPage - 1);
-  if (e.key === 'ArrowLeft' && currentPage < pages.length - 1) showPage(currentPage + 1);
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    openSidebar();
+    searchInput.focus({ preventScroll: true });
+    return;
+  }
+  if (e.key === 'ArrowRight' && currentPage > 0) navigateToPage(currentPage - 1);
+  if (e.key === 'ArrowLeft' && currentPage < pages.length - 1) navigateToPage(currentPage + 1);
 });
 
-window.addEventListener('hashchange', () => {
-  const match = /page=(\d+)/.exec(location.hash);
-  if (!match || !pages.length) return;
-  const index = pages.findIndex(page => page.pageNumber === Number(match[1]));
-  if (index >= 0 && index !== currentPage) showPage(index, false);
-});
+window.addEventListener('hashchange', syncPageFromHash);
+window.addEventListener('popstate', syncPageFromHash);
+window.addEventListener('resize', syncSidebarAccessibility);
 
 /* ---------- Splash screen ----------
    Not a page: never touches location.hash or history, never counted in
@@ -710,6 +1035,9 @@ if (new URLSearchParams(location.search).has('capture')) {
 
 window.addEventListener('DOMContentLoaded', () => {
   applyFontSize();
+  tabAllBtn.setAttribute('aria-pressed', 'true');
+  tabFavBtn.setAttribute('aria-pressed', 'false');
+  syncSidebarAccessibility();
   loadData();
   setTimeout(dismissSplash, prefersReducedMotion ? 1800 : 4800);
 });
