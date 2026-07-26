@@ -45,8 +45,11 @@ const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)
 const SECTION_MARKER = /^(أولاً|ثانياً|ثالثاً|رابعاً|خامساً)\s*:/;
 const ORIGINAL_IMAGE_PAGES = new Set([1, 2, 4, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 208]);
 const HANDWRITTEN_IMAGE_PAGES = new Set([4, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202]);
+const PRINTED_INDEX_PAGES = new Set([203, 204, 205, 206, 207]);
+const IMAGE_ONLY_READER_PAGES = new Set(ORIGINAL_IMAGE_PAGES);
 
 let pages = [];
+let totalPageNumber = 0;
 let currentPage = 0;
 let currentTab = 'all';
 let searchQuery = '';
@@ -148,14 +151,15 @@ function loadData() {
 
   dataPromise
     .then(loaded => {
-      pages = loaded;
+      pages = loaded.filter(page => !PRINTED_INDEX_PAGES.has(Number(page.pageNumber)));
+      totalPageNumber = Math.max(...pages.map(page => Number(page.pageNumber) || 0));
       computeSectionLabels(pages);
-      pageJumpInput.max = String(Math.max(...pages.map(page => Number(page.pageNumber) || 0)));
+      pageJumpInput.max = String(totalPageNumber);
       renderIndexList({ scrollActive: false });
       if (!pages.length) return;
       const match = /page=(\d+)/.exec(location.hash);
-      const wanted = match ? pages.findIndex(p => p.pageNumber === Number(match[1])) : -1;
-      showPage(wanted >= 0 ? wanted : 0);
+      const wanted = match ? findReaderPageIndex(Number(match[1])) : 0;
+      showPage(wanted);
     })
     .catch(error => {
       logDev('Failed to load pages', error);
@@ -257,6 +261,9 @@ function renderPoemBody(container, page, mode) {
   container.innerHTML = '';
   const hasSourceImage = renderSourceImage(container, page);
   container.classList.toggle('has-source-image', hasSourceImage);
+  if (hasSourceImage && IMAGE_ONLY_READER_PAGES.has(Number(page.pageNumber))) {
+    return;
+  }
   const body = page.text || '';
   if (!body.trim()) {
     return;
@@ -550,9 +557,9 @@ function applyPageContent(page) {
   titleEl.textContent = page.title || `الصفحة ${page.pageNumber}`;
   titleEl.classList.toggle('prose-title', mode === 'prose');
   sectionLabelEl.textContent = page.sectionLabel || '';
-  pageEl.textContent = `الصفحة ${page.pageNumber} من ${pages.length}`;
+  pageEl.textContent = `الصفحة ${page.pageNumber} من ${totalPageNumber}`;
   currentPageNumberEl.textContent = page.pageNumber;
-  totalPageNumberEl.textContent = pages.length;
+  totalPageNumberEl.textContent = totalPageNumber;
   poemPanelEl.classList.toggle('visual-page', !!page.image);
   poemCardWrapEl.classList.toggle('visual-page', !!page.image);
   textEl.classList.toggle('prose-mode', mode === 'prose');
@@ -845,11 +852,26 @@ function parsePageNumber(value) {
   return /^\d+$/.test(normalizedDigits) ? Number(normalizedDigits) : NaN;
 }
 
+function findReaderPageIndex(pageNumber) {
+  const exact = pages.findIndex(page => Number(page.pageNumber) === pageNumber);
+  if (exact >= 0) return exact;
+
+  const next = pages.findIndex(page => Number(page.pageNumber) > pageNumber);
+  return next >= 0 ? next : Math.max(0, pages.length - 1);
+}
+
 function syncPageFromHash() {
   const match = /page=(\d+)/.exec(location.hash);
   if (!match || !pages.length) return;
-  const index = pages.findIndex(page => page.pageNumber === Number(match[1]));
-  if (index >= 0 && index !== currentPage) showPage(index, false);
+  const requestedPage = Number(match[1]);
+  const index = findReaderPageIndex(requestedPage);
+  const isExactPage = Number(pages[index]?.pageNumber) === requestedPage;
+
+  if (!isExactPage) {
+    showPage(index, true, 'replace');
+  } else if (index !== currentPage) {
+    showPage(index, false);
+  }
 }
 
 /* ---------- Events ---------- */
