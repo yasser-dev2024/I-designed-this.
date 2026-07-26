@@ -112,12 +112,23 @@ function loadDataFile(filename) {
     });
 }
 
+function loadEmbeddedData() {
+  const result = parsePagesJson(window.DIWAN_PAGES);
+  if (!result.length) throw new Error('no embedded pages');
+  logDev(`Loaded ${result.length} pages from pages-data.js`);
+  return result;
+}
+
 function loadData() {
-  loadDataFile('pages.json')
-    .catch(error => {
-      logDev('pages.json failed, trying poems.json', error);
-      return loadDataFile('poems.json');
-    })
+  const dataPromise = window.DIWAN_PAGES
+    ? Promise.resolve().then(loadEmbeddedData)
+    : loadDataFile('pages.json')
+      .catch(error => {
+        logDev('pages.json failed, trying poems.json', error);
+        return loadDataFile('poems.json');
+      });
+
+  dataPromise
     .then(loaded => {
       pages = loaded;
       computeSectionLabels(pages);
