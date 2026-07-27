@@ -511,6 +511,9 @@ body {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-color: rgba(233, 196, 78, 0.92) rgba(212, 175, 55, 0.09);
+  scrollbar-width: thin;
   font-size: var(--poem-font-size);
   line-height: 2.15;
   color: var(--text);
@@ -522,13 +525,19 @@ body {
 }
 
 .poem-text::-webkit-scrollbar {
-  width: 5px;
+  width: 7px;
+}
+
+.poem-text::-webkit-scrollbar-track {
+  background: rgba(212, 175, 55, 0.09);
+  border-radius: 999px;
 }
 
 .poem-text::-webkit-scrollbar-thumb {
-  background: var(--gold);
-  border-radius: 3px;
-  opacity: 0.6;
+  min-height: 38px;
+  border: 1px solid rgba(255, 226, 126, 0.28);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #efcc55, #b78a17);
 }
 
 .verse-row {
@@ -818,6 +827,19 @@ body {
 /* On desktop, keep the complete source page visible inside the fixed-height card.
    The viewer still provides a larger reading surface without cropping the image. */
 @media (min-width: 861px) {
+  /* Give the wrapper a definite stage height while allowing short poems to
+     keep a compact card. Long poems are capped by the stage and their text
+     area scrolls instead of disappearing behind the footer. */
+  .poem-card-wrap {
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .poem-panel {
+    max-height: 100%;
+  }
+
   .poem-panel.visual-page .poem-text.has-source-image {
     overflow-y: hidden;
   }
