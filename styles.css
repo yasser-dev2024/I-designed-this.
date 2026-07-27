@@ -551,12 +551,46 @@ body {
   white-space: nowrap;
 }
 
+.verse-row span[data-display-text] {
+  position: relative;
+  color: transparent;
+}
+
+.verse-row span[data-display-text]::before {
+  content: attr(data-display-text);
+  position: absolute;
+  inset: 0;
+  color: var(--text);
+  direction: rtl;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .verse-row > span:first-child {
   text-align: left;
 }
 
 .verse-row > span:last-child {
   text-align: right;
+}
+
+.verse-row > span:first-child::before {
+  text-align: left;
+}
+
+.verse-row > span:last-child::before {
+  text-align: right;
+}
+
+.verse-text-measure {
+  position: fixed;
+  top: -10000px;
+  left: -10000px;
+  z-index: -1;
+  visibility: hidden;
+  direction: rtl;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .prose-line {

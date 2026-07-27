@@ -429,12 +429,134 @@ function renderFootnotes(container, footnoteLines) {
 }
 
 let verseFitFrame = 0;
+let verseMeasureEl = null;
+
+const TATWEEL_CHAR = '\u0640';
+const ARABIC_DIACRITIC = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/u;
+const ARABIC_JOINING_LETTER = /[\u0621-\u063A\u0641-\u064A\u066E\u066F\u0671-\u06D3\u06FA-\u06FC]/u;
+const KASHIDA_BREAK_AFTER = new Set([
+  '\u0621', '\u0622', '\u0623', '\u0624', '\u0625', '\u0627', '\u0629',
+  '\u062F', '\u0630', '\u0631', '\u0632', '\u0648', '\u0649',
+  '\u0671', '\u0698'
+]);
+const ALEF_FORMS = new Set(['\u0622', '\u0623', '\u0625', '\u0627', '\u0671']);
+
+function getKashidaSlots(text) {
+  const units = Array.from(text);
+  const slots = [];
+
+  for (let index = 0; index < units.length - 1; index++) {
+    const current = units[index];
+    if (!ARABIC_JOINING_LETTER.test(current) || KASHIDA_BREAK_AFTER.has(current)) continue;
+
+    let nextIndex = index + 1;
+    while (nextIndex < units.length && ARABIC_DIACRITIC.test(units[nextIndex])) nextIndex++;
+    const next = units[nextIndex];
+    if (!next || !ARABIC_JOINING_LETTER.test(next) || next === '\u0621') continue;
+
+    /* Preserve the familiar lam-alef ligature instead of breaking it with a
+       display-only kashida. Other valid joining points remain available. */
+    if (current === '\u0644' && ALEF_FORMS.has(next)) continue;
+    slots.push(nextIndex);
+  }
+
+  return { units, slots };
+}
+
+function buildKashidaText(units, slots, count) {
+  if (!count || !slots.length) return units.join('');
+
+  const insertions = new Map();
+  for (let index = 0; index < count; index++) {
+    const slot = slots[index % slots.length];
+    insertions.set(slot, (insertions.get(slot) || 0) + 1);
+  }
+
+  return units.map((unit, index) => {
+    const amount = insertions.get(index) || 0;
+    return `${TATWEEL_CHAR.repeat(amount)}${unit}`;
+  }).join('');
+}
+
+function measureVerseText(reference, value) {
+  if (!verseMeasureEl?.isConnected) {
+    verseMeasureEl = document.createElement('span');
+    verseMeasureEl.className = 'verse-text-measure';
+    verseMeasureEl.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(verseMeasureEl);
+  }
+
+  const style = getComputedStyle(reference);
+  verseMeasureEl.style.fontFamily = style.fontFamily;
+  verseMeasureEl.style.fontSize = style.fontSize;
+  verseMeasureEl.style.fontStyle = style.fontStyle;
+  verseMeasureEl.style.fontWeight = style.fontWeight;
+  verseMeasureEl.style.fontStretch = style.fontStretch;
+  verseMeasureEl.style.fontFeatureSettings = style.fontFeatureSettings;
+  verseMeasureEl.style.fontVariationSettings = style.fontVariationSettings;
+  verseMeasureEl.style.letterSpacing = style.letterSpacing;
+  verseMeasureEl.style.wordSpacing = style.wordSpacing;
+  verseMeasureEl.textContent = value;
+  return verseMeasureEl.getBoundingClientRect().width;
+}
+
+function applyKashidaToHalf(half) {
+  half.removeAttribute('data-display-text');
+
+  const sourceText = half.textContent || '';
+  const { units, slots } = getKashidaSlots(sourceText);
+  if (!slots.length || !half.clientWidth) return;
+
+  const style = getComputedStyle(half);
+  const horizontalPadding = Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+  const targetWidth = Math.max(0, half.clientWidth - horizontalPadding - 2);
+  if (!targetWidth) return;
+
+  const sourceWidth = measureVerseText(half, sourceText);
+  if (sourceWidth >= targetWidth - 1) return;
+
+  let low = 1;
+  let high = 192;
+  let bestText = sourceText;
+
+  while (low <= high) {
+    const count = Math.floor((low + high) / 2);
+    const candidate = buildKashidaText(units, slots, count);
+    const candidateWidth = measureVerseText(half, candidate);
+
+    if (candidateWidth <= targetWidth) {
+      bestText = candidate;
+      low = count + 1;
+    } else {
+      high = count - 1;
+    }
+  }
+
+  if (bestText !== sourceText) {
+    /* Only the CSS-generated visual layer receives tatweel. The DOM text,
+       search, copy and speech content remain byte-for-byte unchanged. */
+    half.dataset.displayText = bestText;
+    half.setAttribute('aria-label', sourceText);
+  }
+}
+
+function applyVerseKashida(rows) {
+  rows.forEach(row => {
+    row.querySelectorAll(':scope > span').forEach(applyKashidaToHalf);
+  });
+}
 
 function fitVerseRows(container = textEl) {
   const rows = [...container.querySelectorAll('.verse-row')];
   if (!rows.length) return;
 
-  rows.forEach(row => row.style.removeProperty('font-size'));
+  rows.forEach(row => {
+    row.style.removeProperty('font-size');
+    row.querySelectorAll(':scope > span').forEach(half => {
+      half.removeAttribute('data-display-text');
+      half.removeAttribute('aria-label');
+    });
+  });
 
   const baseSize = Number.parseFloat(getComputedStyle(rows[0]).fontSize) || FONT_STEPS[fontStep];
   let fitRatio = 1;
@@ -446,13 +568,15 @@ function fitVerseRows(container = textEl) {
     });
   });
 
-  if (fitRatio >= 0.995) return;
+  if (fitRatio < 0.995) {
+    const minimumSize = isMobileLayout() ? 10.5 : 11.5;
+    const fittedSize = Math.max(minimumSize, Math.floor(baseSize * fitRatio * 0.97 * 10) / 10);
+    rows.forEach(row => {
+      row.style.fontSize = `${fittedSize}px`;
+    });
+  }
 
-  const minimumSize = isMobileLayout() ? 10.5 : 11.5;
-  const fittedSize = Math.max(minimumSize, Math.floor(baseSize * fitRatio * 0.97 * 10) / 10);
-  rows.forEach(row => {
-    row.style.fontSize = `${fittedSize}px`;
-  });
+  applyVerseKashida(rows);
 }
 
 function scheduleVerseFit(container = textEl) {
