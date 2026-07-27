@@ -901,7 +901,6 @@ function applyFontSize() {
 /* ---------- Text-to-speech ---------- */
 
 function stopReading() {
-  window.speechSynthesis?.cancel();
   speaking = false;
   readBtn.classList.remove('active');
   readBtn.setAttribute('aria-pressed', 'false');
@@ -910,28 +909,8 @@ function stopReading() {
 }
 
 function toggleReading() {
-  if (!('speechSynthesis' in window)) {
-    alert('المتصفح لا يدعم خاصية القراءة الصوتية.');
-    return;
-  }
-  if (speaking) {
-    stopReading();
-    return;
-  }
-  const page = pages[currentPage];
-  if (!page) return;
-  const utter = new SpeechSynthesisUtterance(getPageCopyText(page));
-  utter.lang = 'ar-SA';
-  utter.rate = 0.9;
-  utter.onend = stopReading;
-  utter.onerror = stopReading;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utter);
-  speaking = true;
-  readBtn.classList.add('active');
-  readBtn.setAttribute('aria-pressed', 'true');
-  const label = readBtn.querySelector('span');
-  if (label) label.textContent = 'إيقاف القراءة';
+  stopReading();
+  alert('ترقب في الإصدار القادم');
 }
 
 /* ---------- Copy / Share ---------- */
