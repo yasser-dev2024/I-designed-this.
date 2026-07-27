@@ -40,6 +40,7 @@ const splashPhotoEl = document.querySelector('.splash-photo');
 const sectionLabelEl = document.getElementById('sectionLabel');
 const poemPanelEl = document.querySelector('.poem-panel');
 const poemCardWrapEl = document.querySelector('.poem-card-wrap');
+const readerDesignCreditEl = document.getElementById('readerDesignCredit');
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const SECTION_MARKER = /^(أولاً|ثانياً|ثالثاً|رابعاً|خامساً)\s*:/;
@@ -47,6 +48,7 @@ const ORIGINAL_IMAGE_PAGES = new Set([1, 2, 4, 191, 192, 193, 194, 195, 196, 197
 const HANDWRITTEN_IMAGE_PAGES = new Set([4, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202]);
 const PRINTED_INDEX_PAGES = new Set([203, 204, 205, 206, 207]);
 const IMAGE_ONLY_READER_PAGES = new Set(ORIGINAL_IMAGE_PAGES);
+const FOOTNOTE_MARKER = /^(\((?:[٠-٩۰-۹0-9]+|\*)\))\s*(.*)$/;
 
 let pages = [];
 let totalPageNumber = 0;
@@ -257,6 +259,18 @@ function renderSourceImage(container, page) {
   return true;
 }
 
+function getDisplayBody(page) {
+  const sourceBody = page.text || '';
+
+  /* The source data remains untouched. This removes only the repeated author
+     credit in the on-screen King Fahd Library catalog entry. */
+  if (Number(page.pageNumber) === 3) {
+    return sourceBody.replace(' /عبدالله بن محمد الزمزمي.', '');
+  }
+
+  return sourceBody;
+}
+
 function renderPoemBody(container, page, mode) {
   container.innerHTML = '';
   const hasSourceImage = renderSourceImage(container, page);
@@ -264,7 +278,7 @@ function renderPoemBody(container, page, mode) {
   if (hasSourceImage && IMAGE_ONLY_READER_PAGES.has(Number(page.pageNumber))) {
     return;
   }
-  const body = page.text || '';
+  const body = getDisplayBody(page);
   if (!body.trim()) {
     return;
   }
@@ -277,16 +291,21 @@ function renderPoemBody(container, page, mode) {
   }
 
   const contentLines = lines.slice(start);
+  const footnoteStart = contentLines.findIndex(line => FOOTNOTE_MARKER.test(line.trim()));
+  const mainLines = footnoteStart >= 0 ? contentLines.slice(0, footnoteStart) : contentLines;
+  const footnoteLines = footnoteStart >= 0 ? contentLines.slice(footnoteStart) : [];
 
   if (mode === 'prose') {
-    renderProseBody(container, contentLines);
+    renderProseBody(container, mainLines);
+    renderFootnotes(container, footnoteLines);
+    scheduleVerseFit(container);
     return;
   }
 
   const frag = document.createDocumentFragment();
   let pendingBreak = false;
 
-  contentLines.forEach(line => {
+  mainLines.forEach(line => {
     const trimmed = line.trim();
     if (!trimmed) {
       pendingBreak = true;
@@ -320,6 +339,8 @@ function renderPoemBody(container, page, mode) {
   });
 
   container.appendChild(frag);
+  renderFootnotes(container, footnoteLines);
+  scheduleVerseFit(container);
 }
 
 /* Groups content lines into paragraphs at blank-line boundaries only.
@@ -351,8 +372,96 @@ function renderProseBody(container, contentLines) {
   container.appendChild(frag);
 }
 
+function renderFootnotes(container, footnoteLines) {
+  if (!footnoteLines.length) return;
+
+  const notes = document.createElement('aside');
+  notes.className = 'footnotes';
+  notes.setAttribute('aria-label', 'ملاحظات النص');
+
+  let currentCopy = null;
+
+  footnoteLines.forEach(line => {
+    const trimmed = line.trim();
+    const markerMatch = FOOTNOTE_MARKER.exec(trimmed);
+
+    if (markerMatch) {
+      const entry = document.createElement('div');
+      entry.className = 'footnote-entry';
+
+      const marker = document.createElement('span');
+      marker.className = 'footnote-marker';
+      marker.textContent = markerMatch[1];
+
+      currentCopy = document.createElement('div');
+      currentCopy.className = 'footnote-copy';
+
+      if (markerMatch[2]) {
+        const firstLine = document.createElement('span');
+        firstLine.className = 'footnote-line';
+        firstLine.textContent = markerMatch[2];
+        currentCopy.appendChild(firstLine);
+      }
+
+      entry.appendChild(marker);
+      entry.appendChild(currentCopy);
+      notes.appendChild(entry);
+      return;
+    }
+
+    if (!currentCopy) return;
+
+    if (!trimmed) {
+      const gap = document.createElement('span');
+      gap.className = 'footnote-gap';
+      gap.setAttribute('aria-hidden', 'true');
+      currentCopy.appendChild(gap);
+      return;
+    }
+
+    const continuation = document.createElement('span');
+    continuation.className = 'footnote-line';
+    continuation.textContent = trimmed;
+    currentCopy.appendChild(continuation);
+  });
+
+  container.appendChild(notes);
+}
+
+let verseFitFrame = 0;
+
+function fitVerseRows(container = textEl) {
+  const rows = [...container.querySelectorAll('.verse-row')];
+  if (!rows.length) return;
+
+  rows.forEach(row => row.style.removeProperty('font-size'));
+
+  const baseSize = Number.parseFloat(getComputedStyle(rows[0]).fontSize) || FONT_STEPS[fontStep];
+  let fitRatio = 1;
+
+  rows.forEach(row => {
+    row.querySelectorAll('span').forEach(half => {
+      if (!half.clientWidth || !half.scrollWidth) return;
+      fitRatio = Math.min(fitRatio, half.clientWidth / half.scrollWidth);
+    });
+  });
+
+  if (fitRatio >= 0.995) return;
+
+  const minimumSize = isMobileLayout() ? 10.5 : 11.5;
+  const fittedSize = Math.max(minimumSize, Math.floor(baseSize * fitRatio * 0.97 * 10) / 10);
+  rows.forEach(row => {
+    row.style.fontSize = `${fittedSize}px`;
+  });
+}
+
+function scheduleVerseFit(container = textEl) {
+  cancelAnimationFrame(verseFitFrame);
+  verseFitFrame = requestAnimationFrame(() => fitVerseRows(container));
+}
+
 function plainTextOf(page) {
-  return (page.text || '').split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+  return getDisplayBody(page).split('\n').map(l => l.trim()).filter(Boolean).join('\n');
 }
 
 function normalizeArabic(value) {
@@ -377,7 +486,7 @@ function getSearchMatch(page, query) {
 
   const terms = normalizedQuery.split(' ').filter(Boolean);
   const normalizedTitle = normalizeArabic(page.title);
-  const lines = (page.text || '')
+  const lines = getDisplayBody(page)
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean);
@@ -560,6 +669,7 @@ function applyPageContent(page) {
   pageEl.textContent = `الصفحة ${page.pageNumber} من ${totalPageNumber}`;
   currentPageNumberEl.textContent = page.pageNumber;
   totalPageNumberEl.textContent = totalPageNumber;
+  readerDesignCreditEl.hidden = Number(page.pageNumber) !== 1;
   poemPanelEl.classList.toggle('visual-page', !!page.image);
   poemCardWrapEl.classList.toggle('visual-page', !!page.image);
   textEl.classList.toggle('prose-mode', mode === 'prose');
@@ -661,6 +771,7 @@ function syncSidebarAccessibility() {
 function applyFontSize() {
   document.documentElement.style.setProperty('--poem-font-size', `${FONT_STEPS[fontStep]}px`);
   localStorage.setItem(FONT_KEY, String(fontStep));
+  scheduleVerseFit();
 }
 
 /* ---------- Text-to-speech ---------- */
@@ -1028,7 +1139,10 @@ document.addEventListener('keydown', e => {
 
 window.addEventListener('hashchange', syncPageFromHash);
 window.addEventListener('popstate', syncPageFromHash);
-window.addEventListener('resize', syncSidebarAccessibility);
+window.addEventListener('resize', () => {
+  syncSidebarAccessibility();
+  scheduleVerseFit();
+});
 
 /* ---------- Splash screen ----------
    Not a page: never touches location.hash or history, never counted in
