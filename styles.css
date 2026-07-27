@@ -549,20 +549,14 @@ body {
   min-width: 0;
   padding-inline: 1px;
   white-space: nowrap;
-  text-align: right;
 }
 
-.verse-row::after {
-  content: '◆';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  color: var(--gold);
-  font-family: Tahoma, Arial, sans-serif;
-  font-size: 5px;
-  line-height: 1;
-  opacity: 0.58;
-  transform: translate(-50%, -50%);
+.verse-row > span:first-child {
+  text-align: left;
+}
+
+.verse-row > span:last-child {
+  text-align: right;
 }
 
 .prose-line {
